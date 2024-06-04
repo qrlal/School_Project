@@ -4,6 +4,7 @@ import requests
 from bs4 import BeautifulSoup
 from datetime import datetime
 
+# 현재 날짜와 시간 가져오기
 now = datetime.now()
 
 # 년월 가져오기
@@ -22,50 +23,103 @@ if response.status_code == 200:
 
     # MLSV_YMD, DDISH_NM, MMEAL_SC_NM 태그를 찾음
     ymd_tags = soup.find_all('MLSV_YMD')
-    ymd = [i.text[6:] for i in ymd_tags]
+    ymd = [tag.text[6:] for tag in ymd_tags]
 
     meal_tags = soup.find_all('DDISH_NM')
     meal = [tag.text for tag in meal_tags]
 
     meal_type_tags = soup.find_all('MMEAL_SC_NM')
-    meal_index = [tag.text for tag in meal_type_tags]
+    meal_types = [tag.text for tag in meal_type_tags]
 
-    if "석식" in meal_index:
-        ind = meal_index.index("석식")
+    lunch_data = []
+    dinner_data = []
 
-        meal_lunch = meal[:ind]
-        meal_dinner = meal[ind:]
-        ymd_lunch = ymd[:ind]
-        ymd_dinner = ymd[ind:]
+    for i in range(len(ymd)):
+        if meal_types[i] == "중식":
+            lunch_data.append((ymd[i], meal[i]))
+        elif meal_types[i] == "석식":
+            dinner_data.append((ymd[i], meal[i]))
 
-        for y in range(len(ymd_lunch)):
-            if y >= len(ymd_dinner) or ymd_lunch[y] != ymd_dinner[y]:
-                ymd_dinner.insert(y, 'no')
+    # 날짜에 맞게 중식과 석식을 병합
+    merged_data = {}
+    for date, menu in lunch_data:
+        if date not in merged_data:
+            merged_data[date] = {"lunch": menu, "dinner": ""}
+        else:
+            merged_data[date]["lunch"] = menu
 
-        for i in range(len(ymd_dinner)):
-            if ymd_dinner[i] == "no":
-                meal_dinner.insert(i, "")
+    for date, menu in dinner_data:
+        if date not in merged_data:
+            merged_data[date] = {"lunch": "", "dinner": menu}
+        else:
+            merged_data[date]["dinner"] = menu
 
+    # HTML 생성 함수
     def generate_html():
         html_content = f"""
         <html>
         <head>
             <meta charset="UTF-8">
             <title>급식 정보</title>
+            <style>
+                body {{
+                    display: flex;
+                    justify-content: center;
+                    align-items: flex-start;
+                    height: 100%;
+                    margin: 0;
+                    font-family: Arial, sans-serif;
+                    padding: 20px;
+                }}
+                .table-container {{
+                    overflow: auto;
+                    max-height: 90vh;
+                    width: 80%;
+                    margin: auto;
+                }}
+                table {{
+                    border-collapse: collapse;
+                    width: 100%;
+                    border-collapse: separate;
+                    border-spacing: 0 10px;
+                    top: 0;
+                    margin-left:auto;
+                    margin-right:auto;
+                }}
+                th, td {{
+                    border: 1px solid #dddddd;
+                    text-align: left;
+                    padding: 8px;
+                    text-align: center;
+                    border: 3px solid rgb(0, 0, 0);
+                    font-size: 20px;
+                    padding-top: 0px;
+                    padding-bottom: 0px;
+                    font-weight : bolder;
+                    border-radius: 10px;
+                }}
+                th {{
+                    background-color: #f2f2f2;
+                }}
+                tr:nth-child(even) {{
+                    background-color: #f9f9f9;
+                }}
+            </style>
         </head>
         <body>
-            <h1>{current_month}월 급식</h1>
-            <table border='1'>
-                <tr><th>날짜</th><th>메뉴</th></tr>
+
+                <table>
+                    <tr><th>날짜</th><th>반곡고 {current_month}월 메뉴</th></tr>
         """
-        for d_l, m_l, d_d, m_d in zip(ymd_lunch, meal_lunch, ymd_dinner, meal_dinner):
-            if d_l != d_d:
-                html_content += f"<tr><td>{d_l}</td><td>{m_l}</td></tr>"
-            else:
-                html_content += f"<tr><td>{d_l}</td><td>{m_l}<br/><br/>{m_d}</td></tr>"
+        for date, menus in sorted(merged_data.items()):
+            combined_menu = menus['lunch']
+            if menus['dinner']:
+                combined_menu += f"<br/><br/>{menus['dinner']}"
+            html_content += f"<tr><td>{date}</td><td>{combined_menu}</td></tr>"
         html_content += "</table></body></html>"
         return html_content
 
+    # 서버 요청 핸들러
     class SimpleHTTPRequestHandler(http.server.BaseHTTPRequestHandler):
         def do_GET(self):
             if self.path == '/':
@@ -75,6 +129,7 @@ if response.status_code == 200:
                 self.wfile.write(generate_html().encode('utf-8'))
                 return
 
+    # 서버 설정 및 실행
     with socketserver.TCPServer(("", 8000), SimpleHTTPRequestHandler) as httpd:
         print("서버 시작")
         httpd.serve_forever()
