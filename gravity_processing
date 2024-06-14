@@ -1,0 +1,77 @@
+import math
+import sys
+
+class Vector2D:   # 2차원 벡터 클래스 정의
+    def __init__(self,x,y):
+        self._x=x
+        self._y=y
+    def __str__(self): # 벡터 출력 형식
+        return '({},{})'.format(self._x, self._y)
+    def add(self, other):  # 벡터의 더하기 구현
+        return Vector2D(self._x + other._x, self._y+other._y)
+    def __sub__(self,other):  # 벡터의 뺼셈 구현
+        return Vector2D(self._x - other._x, self._y-other._y)
+    def __mul__(self,other):  #벡터의 곱셈 구현
+        return Vector2D(self._x * other._x, self._y*other._y)
+    def norm(self) :  # 벡터의 정규화
+        magnitude = sqrt((self._x)**2 + (self._y)**2)  # 벡터의 크기
+        if magnitude == 0:
+            return Vector2D(1, 1)
+        return Vector2D(self._x / magnitude, self._y /magnitude)  # x,y를 벡터의 크기로 나눠서 크기가 1인 벡터로 정규화
+
+def G (m1, m2, dis):   # 두 물체의 질량, 거리 받아서 만류인력 return (만류인력의 법칙 공식 사용)
+    if dis == 0:
+        return 0
+    return 7 * 10**-11 * m1 * m2 / dis / dis
+
+screen_width = 1800
+screen_height = 800
+scren_start = [0, 0]
+
+rksrur = 50 # 간격
+
+lines = []
+for i in range(1800 // rksrur - 1):
+    for j in range(800//rksrur - 1):
+        lines.append({"x" : rksrur*(i+1), "y" :rksrur*(j+1), "mess" : 1, "g" : 0, "dir" : Vector2D(0,0), "dis" : 0})
+
+ball1 = {"x" : 200, "y" : 600 , "r" : 20, "mess" : 6*10**18}
+
+def setup():
+    size(screen_width, screen_height)  # 화면 크기 설정
+
+def draw():
+    background(0)  # 배경을 흰색으로 설정
+    
+    for line1 in lines:
+        dis = sqrt((line1["x"]-ball1["x"])**2 + (line1["y"]-ball1["y"])**2)
+        line1["dis"] = dis
+        line1["g"] = G(line1["mess"], ball1["mess"], dis)
+
+        line_loc_vec = Vector2D(line1["x"], line1["y"])
+        ball1_loc_vec = Vector2D(ball1["x"], ball1["y"])
+        line_dir_vec = ball1_loc_vec - line_loc_vec
+        line_dir_vec = line_dir_vec.norm()
+        scale_vec = Vector2D(line1["g"], line1["g"])
+        line_dir_vec = scale_vec * line_dir_vec
+        line1["dir"] = line_dir_vec
+
+
+    global_ball1 = Vector2D(scren_start[0]+ball1["x"], scren_start[1]+ball1["y"])
+    global_mouse = Vector2D(mouseX, mouseY)
+    ball1_mouse_vec = global_mouse - global_ball1
+    # ball1_mouse_vec = ball1_mouse_vec.norm()
+    ball1["x"] += ball1_mouse_vec._x / 50
+    ball1["y"] += ball1_mouse_vec._y / 50
+    
+    stroke(255,255,255);
+    for line1 in lines:
+        if line1["dis"] < math.sqrt((line1["x"]-(line1["x"]+line1["dir"]._x/100))**2 + (line1["y"]-(line1["y"]+line1["dir"]._y/100))**2):
+            dirvec = line1["dir"].norm()
+            dirvec = Vector2D(line1["dis"], line1["dis"])*dirvec
+            line(line1["x"], line1["y"], line1["x"]+dirvec._x, line1["y"]+dirvec._y)
+            continue
+        line(line1["x"], line1["y"], line1["x"]+line1["dir"]._x/100, line1["y"]+line1["dir"]._y/100)
+
+    fill(255, 0, 0)  # 원의 색상 설정 (빨간색) 
+    ellipse(ball1["x"], ball1["y"], ball1["r"]*2, ball1["r"]*2)  # 중심을 기준으로 원 그리기
